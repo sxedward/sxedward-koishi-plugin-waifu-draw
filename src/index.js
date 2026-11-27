@@ -121,6 +121,8 @@ function sanitizeRecord(input) {
   return record
 }
 
+// 统计与抽取记录只按「平台:用户」区分，刻意不含 guildId / channelId，
+// 因此同一用户跨任意群的抽取都会汇入同一份记录（单人全局汇总，不分群）。
 function userKey(session) {
   const platform = String(session.platform || 'unknown')
   const userId = String(session.userId || 'unknown')
@@ -163,7 +165,7 @@ function safeFileName(value) {
 
 module.exports.name = name
 module.exports.Config = Config
-module.exports.usage = '发送“抽老婆”抽取老婆、情缘与照片，发送“老婆统计”查看个人进度；管理员可用“老婆添加 / 老婆删除”维护名单。'
+module.exports.usage = '发送“抽老婆”抽取老婆、情缘与照片（首次抽到会提示），发送“老婆统计”查看单人全局汇总（不分群）；管理员可用“老婆添加 / 老婆删除”维护名单。'
 
 module.exports.apply = async (ctx, rawConfig) => {
   const config = normalizeConfig(rawConfig)
@@ -370,6 +372,7 @@ module.exports.apply = async (ctx, rawConfig) => {
 
       const wife = wives[Math.floor(Math.random() * wives.length)]
       const bond = 1 + Math.floor(Math.random() * 100)
+      const isFirst = !record.wives[wife.name] || record.wives[wife.name].count <= 0
       const own = record.wives[wife.name] || (record.wives[wife.name] = { count: 0, bond: 0 })
       own.count += 1
       own.bond += bond
@@ -382,6 +385,7 @@ module.exports.apply = async (ctx, rawConfig) => {
         `抽到了：${wife.name}`,
         `情缘：${bond}%（本次，1%~100% 整数）`,
         `累计情缘：${own.bond}%　累计次数：${own.count} 次`,
+        ...(isFirst ? [`★ 首次抽到「${wife.name}」！`] : []),
       ].join('\n')
 
       const elements = [h.text(text)]
@@ -392,10 +396,11 @@ module.exports.apply = async (ctx, rawConfig) => {
       return elements
     })
 
-  ctx.command('老婆统计', '查询我的老婆数量、占比以及情缘 / 次数前 7 名')
+  ctx.command('老婆统计', '查询我的老婆数量、占比以及情缘 / 次数前 7 名（单人全局汇总，不分群）')
     .alias('waifu.stats')
     .alias('我的老婆')
     .action(({ session }) => {
+      // 单人全局汇总：只看当前用户自己的记录，且该记录跨所有群合并（键不含群 ID）。
       const record = records[userKey(session)] || emptyRecord()
       const allowed = new Set(wives.map((wife) => wife.name))
       const owned = Object.entries(record.wives)
@@ -404,7 +409,7 @@ module.exports.apply = async (ctx, rawConfig) => {
       const percent = wives.length > 0 ? (owned / wives.length * 100).toFixed(2) : '0.00'
 
       const lines = [
-        '【老婆统计】',
+        '【老婆统计】（单人全局汇总，不分群）',
         `老婆数量：${owned} / ${wives.length}`,
         `已有占比：${percent}%（小数保留两位）`,
         `累计抽取：${record.total} 次`,
