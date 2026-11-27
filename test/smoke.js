@@ -147,6 +147,30 @@ async function run() {
     assert.match(statsText, /累计次数 TOP7：/)
     assert.match(statsText, /小红　\d+%/)
     assert.match(statsText, /小美　\d+ 次/)
+    assert.match(statsText, /单人全局汇总，不分群/)
+
+    // 首次抽到提示：只用一位老婆，第一次必提示、第二次不再提示。
+    const firstDir = await fs.mkdtemp(path.join(os.tmpdir(), 'waifu-draw-first-'))
+    const firstConfig = { ...baseConfig, waifus: [{ name: '唯一', photo: '小红.jpg' }] }
+    const first = await prepare(firstDir, firstConfig)
+    const firstDraw = first.commands.get('抽老婆').handler
+    const firstResult = textOf(await firstDraw({ session: session() }))
+    assert.match(firstResult, /★ 首次抽到「唯一」！/, '首次抽到应给出提示')
+    const secondResult = textOf(await firstDraw({ session: session() }))
+    assert.doesNotMatch(secondResult, /首次抽到/, '重复抽到同一老婆不应再提示')
+    // 另一用户首次抽到仍应提示（提示按用户自己计算）。
+    assert.match(textOf(await firstDraw({ session: session('20002', 'onebot', 1) })), /★ 首次抽到「唯一」！/)
+
+    // 跨群汇总：同一用户在不同群抽，统计应合并为一份（不分群）。
+    const crossDir = await fs.mkdtemp(path.join(os.tmpdir(), 'waifu-draw-cross-'))
+    const cross = await prepare(crossDir, firstConfig)
+    const crossDraw = cross.commands.get('抽老婆').handler
+    const groupA = { ...session(), guildId: 'group-a' }
+    const groupB = { ...session(), guildId: 'group-b' }
+    await crossDraw({ session: groupA })
+    await crossDraw({ session: groupB })
+    const crossStats = textOf(cross.commands.get('老婆统计').handler({ session: session() }))
+    assert.match(crossStats, /累计抽取：2 次/, '不同群的抽取应合并到同一用户统计')
 
     // 权限：管理员可看名单，普通用户不可看。
     assert.match(textOf(list({ session: session() })), /当前老婆名单（共 2 位）/)
@@ -247,8 +271,14 @@ async function run() {
     assert.match(textOf(await empty.commands.get('抽老婆').handler({ session: session() })), /还没有添加老婆/)
     assert.match(textOf(empty.commands.get('老婆统计').handler({ session: session() })), /已有占比：0\.00%/)
 
-    for (const dir of [cdDir, limitDir, missingDir, manageDir]) await fs.rm(dir, { recursive: true, force: true })
-    console.log('smoke tests passed: draw / stats / admin / persistence / cooldown / daily limit / missing photo / manage commands / panel override / empty list')
+    // 先让仍有延迟落盘定时器的上下文完成写入，再删临时目录（避免 Windows 上 rmdir 竞态）。
+    for (const handle of [cd, limit, missing, first, cross]) {
+      await Promise.all(handle.dispose.map((handler) => handler()))
+    }
+    for (const dir of [cdDir, limitDir, missingDir, manageDir, firstDir, crossDir]) {
+      await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    }
+    console.log('smoke tests passed: draw / stats / admin / persistence / cooldown / daily limit / missing photo / manage commands / panel override / empty list / first-draw hint / cross-group')
   } finally {
     await fs.rm(baseDir, { recursive: true, force: true })
   }
