@@ -1,7 +1,7 @@
 {
   "name": "@sxedward/koishi-plugin-waifu-draw",
-  "version": "1.0.0",
-  "description": "Koishi v4 抽老婆插件：抽取名字、整数情缘与照片，个人统计 TOP7，控制台面板与管理员命令增删老婆及照片，支持 CD 和每日次数限制",
+  "version": "1.0.1",
+  "description": "Koishi v4 抽老婆插件：抽取名字、整数情缘与照片，单人全局汇总统计 TOP7，首次抽到提示，控制台面板与管理员命令增删老婆及照片，支持 CD 和每日次数限制",
   "homepage": "https://github.com/sxedward/sxedward-koishi-plugin-waifu-draw#readme",
   "repository": {
     "type": "git",
@@ -37,8 +37,8 @@
   },
   "koishi": {
     "description": {
-      "zh": "抽老婆：随机抽取老婆、情缘与照片，支持统计和面板管理",
-      "en": "Waifu draw: random wife, intimacy and photo with stats and console config"
+      "zh": "抽老婆：随机抽取老婆、情缘与照片，首次抽到提示，单人全局统计与面板管理",
+      "en": "Waifu draw: random wife, intimacy and photo, first-draw hint, per-user global stats and console config"
     }
   }
 }
